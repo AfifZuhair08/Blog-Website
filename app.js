@@ -4,6 +4,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const _ = require("lodash");
+const mongoose = require("mongoose");
 
 const homeStartingContent =
   "Lacus vel facilisis volutpat est velit egestas dui id ornare. Semper auctor neque vitae tempus quam. Sit amet cursus sit amet dictum sit amet justo. Viverra tellus in hac habitasse. Imperdiet proin fermentum leo vel orci porta. Donec ultrices tincidunt arcu non sodales neque sodales ut. Mattis molestie a iaculis at erat pellentesque adipiscing. Magnis dis parturient montes nascetur ridiculus mus mauris vitae ultricies. Adipiscing elit ut aliquam purus sit amet luctus venenatis lectus. Ultrices vitae auctor eu augue ut lectus arcu bibendum at. Odio euismod lacinia at quis risus sed vulputate odio ut. Cursus mattis molestie a iaculis at erat pellentesque adipiscing.";
@@ -15,21 +16,44 @@ const contactContent =
 const app = express();
 
 app.set("view engine", "ejs");
-
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
+mongoose.set("useFindAndModify", true);
 
-let blogposts = [];
+// Mongoose connection
+mongoose.connect("mongodb://localhost:27017/myapp", {useNewUrlParser: true, useUnifiedTopology: true});
+
+// Schema
+const postsSchema = new mongoose.Schema({
+  title: String,
+  body: String
+});
+
+// Model
+const Post = new mongoose.model("Post", postsSchema);
+
+// let blogposts = [];
 
 app.get("/", function (req, res) {
-  res.render("home", { 
-    homeStartingContent: homeStartingContent,
-    posts: blogposts
+
+  Post.find({}, function (err, foundPosts){
+
+    if(!foundPosts){
+      console.log("Empty");
+    }else{
+      console.log(foundPosts);
+      res.render("home", { 
+        homeStartingContent: homeStartingContent,
+        posts: foundPosts
+      });
+    }
   });
 });
+
 app.get("/about", function (req, res) {
   res.render("about", { aboutContent: aboutContent });
 });
+
 app.get("/contact", function (req, res) {
   res.render("contact", { contactContent: contactContent });
 });
@@ -37,42 +61,57 @@ app.get("/contact", function (req, res) {
 app.get("/compose", function (req, res) {
   res.render("compose");
 });
+
 app.post("/compose", function (req, res) {
 
   const title = req.body.postTitle;
   const body = req.body.postBody;
 
-  const post = {
+  const post = new Post({
     title: title,
-    body: body,
-  };
+    body: body
+  });
 
-  blogposts.push(post);
-  
-  res.redirect("/");
-
+  post.save(function(err){
+    if(!err){
+      res.redirect("/");
+    }
+  });
 });
 
 // PARAMETER ROUTING
-app.get("/posts/:postTitle", function (req, res) {
+app.get("/posts/:id", function (req, res) {
 
   // based on url parameters
-  const reqTitle = _.lowerCase(req.params.postTitle);
+  // const reqTitle = _.lowerCase(req.params.postTitle);
+  const reqID = req.params.id;
+  console.log(reqID);
 
-  // compare with stored posts
-  blogposts.forEach(function (post){
-
-    const storedPostTitle = _.lowerCase(post.title);
-
-    if(reqTitle === storedPostTitle){
-      // console.log("✅ Title Match!");
-
-      res.render("post", {postTitle: post.title, postBody: post.body});
+  Post.findOne({_id: reqID}, function(err, foundList){
+    if(!err){
+      if(!foundList){
+        console.log("Doesnt exist!");
+        res.redirect("/");
+      }else{
+        res.render("post", {postTitle: foundList.title, postBody:foundList.body});
+      }
     }
   });
-  
-});
 
+
+  // compare with stored posts
+  // blogposts.forEach(function (post){
+
+  //   const storedPostTitle = _.lowerCase(post.title);
+
+  //   if(reqTitle === storedPostTitle){
+  //     // console.log("✅ Title Match!");
+
+  //     res.render("post", {postTitle: post.title, postBody: post.body});
+  //   }
+  // });
+
+});
 
 app.listen(3000, function () {
   console.log("Server started on port 3000");
